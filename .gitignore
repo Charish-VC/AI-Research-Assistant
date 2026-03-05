@@ -1,0 +1,37 @@
+# Data
+data/
+*.faiss
+id_map.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Verification scripts
+test*_*.py
+verify_platform.py
+full_test_suite.py
+
+# Large data
+*.pdf
