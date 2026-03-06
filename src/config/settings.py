@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # ── AWS ──────────────────────────────────────────────────────────
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "us-east-1"
+    s3_bucket_name: str = "ai-research-assistant-dev"
+    dynamodb_table_name: str = "ai-research-documents"
+    sqs_queue_name: str = "document-processing-queue"
+
     # ── Derived helpers ──────────────────────────────────────────────────
 
     @property
