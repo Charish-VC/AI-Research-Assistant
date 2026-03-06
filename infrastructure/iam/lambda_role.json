@@ -1,0 +1,78 @@
+{
+  "Description": "IAM role for the ai-research-document-processor Lambda function",
+
+  "TrustPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "lambda.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  },
+
+  "InlinePolicy": {
+    "PolicyName": "ai-research-lambda-policy",
+    "PolicyDocument": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "S3Access",
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject"
+          ],
+          "Resource": "arn:aws:s3:::ai-research-assistant-dev/*"
+        },
+        {
+          "Sid": "DynamoDBAccess",
+          "Effect": "Allow",
+          "Action": [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem"
+          ],
+          "Resource": "arn:aws:dynamodb:us-east-1:*:table/ai-research-documents"
+        },
+        {
+          "Sid": "SQSAccess",
+          "Effect": "Allow",
+          "Action": [
+            "sqs:ReceiveMessage",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes"
+          ],
+          "Resource": "arn:aws:sqs:us-east-1:*:document-processing-queue"
+        },
+        {
+          "Sid": "CloudWatchLogs",
+          "Effect": "Allow",
+          "Action": [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ],
+          "Resource": "arn:aws:logs:us-east-1:*:*"
+        },
+        {
+          "Sid": "BedrockEmbeddings",
+          "Effect": "Allow",
+          "Action": [
+            "bedrock:InvokeModel"
+          ],
+          "Resource": "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v1"
+        }
+      ]
+    }
+  },
+
+  "_CLI_COMMANDS": {
+    "_1_create_role": "aws iam create-role --role-name ai-research-lambda-role --assume-role-policy-document file://infrastructure/iam/trust-policy.json",
+    "_2_put_inline_policy": "aws iam put-role-policy --role-name ai-research-lambda-role --policy-name ai-research-lambda-policy --policy-document file://infrastructure/iam/inline-policy.json",
+    "_note": "Alternatively, extract TrustPolicy into trust-policy.json and InlinePolicy.PolicyDocument into inline-policy.json, then run the commands above."
+  }
+}
