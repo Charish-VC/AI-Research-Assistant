@@ -12,14 +12,12 @@ On failure the DynamoDB status is set to FAILED and the error is logged.
 The exception is *not* re-raised so SQS will delete the message
 (avoids infinite retry loops).
 """
-
 from __future__ import annotations
 
 import json
 import logging
 import os
 import re
-import textwrap
 import time
 from pathlib import Path
 from typing import Any
@@ -43,13 +41,13 @@ AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 # Bedrock embedding model
 BEDROCK_MODEL_ID = "amazon.titan-embed-text-v1"
-BEDROCK_EMBED_DIM = 1536  # Titan v1 output dimension
+BEDROCK_EMBED_DIM = 1536
 
-# Chunking defaults (simplified — no tiktoken in Lambda)
-CHUNK_SIZE_CHARS = 3000  # rough character limit per chunk
+# Chunking defaults
+CHUNK_SIZE_CHARS = 3000
 CHUNK_OVERLAP_CHARS = 400
 
-# ── AWS clients (created once per container via Lambda execution context) ──
+# ── AWS clients ──────────────────────────────────────────────────────────
 s3_client = boto3.client("s3", region_name=AWS_REGION)
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 dynamo_table = dynamodb.Table(DYNAMO_TABLE)
@@ -61,13 +59,6 @@ bedrock_runtime = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 # ═══════════════════════════════════════════════════════════════════════════
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """SQS-triggered Lambda entry point.
-
-    Expects a single SQS record whose body is a JSON object with keys:
-      - doc_id   (str)
-      - filename (str)
-      - s3_raw_path (str)  — full S3 key, e.g. ``raw/<doc_id>/file.pdf``
-    """
     for record in event.get("Records", []):
         body = json.loads(record["body"])
         doc_id: str = body["doc_id"]
@@ -76,17 +67,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         logger.info(
             "Processing doc_id=%s filename=%s s3_raw_path=%s",
-            doc_id,
-            filename,
-            s3_raw_path,
+            doc_id, filename, s3_raw_path,
         )
 
         try:
             _process_document(doc_id, filename, s3_raw_path)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("FAILED doc_id=%s: %s", doc_id, exc, exc_info=True)
             _update_status(doc_id, "FAILED", error=str(exc))
-            # Do NOT re-raise — let SQS delete the message
 
     return {"statusCode": 200, "body": "ok"}
 
@@ -96,17 +84,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _process_document(doc_id: str, filename: str, s3_raw_path: str) -> None:
-    """Full processing pipeline for a single document."""
-
     # ── 1. Download from S3 ──────────────────────────────────────────────
     local_dir = Path(f"/tmp/{doc_id}")
     local_dir.mkdir(parents=True, exist_ok=True)
     local_path = local_dir / filename
 
-    # s3_raw_path may be "s3://bucket/key" or just "key"
     s3_key = s3_raw_path
     if s3_key.startswith("s3://"):
-        # strip "s3://bucket/"
         s3_key = "/".join(s3_key.split("/")[3:])
 
     logger.info("Downloading s3://%s/%s → %s", S3_BUCKET, s3_key, local_path)
@@ -153,25 +137,15 @@ def _process_document(doc_id: str, filename: str, s3_raw_path: str) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _extract_text(file_path: Path) -> str:
-    """Extract text from a file based on its extension."""
     ext = file_path.suffix.lower()
-
     if ext == ".pdf":
         return _extract_pdf(file_path)
-    elif ext in {".md", ".markdown", ".txt", ".html", ".htm"}:
-        return file_path.read_text(encoding="utf-8", errors="replace")
-    else:
-        # Fallback — try to read as plain text
-        return file_path.read_text(encoding="utf-8", errors="replace")
+    return file_path.read_text(encoding="utf-8", errors="replace")
 
 
 def _extract_pdf(file_path: Path) -> str:
-    """Extract text from a PDF using PyPDF2."""
     if PdfReader is None:
-        raise ImportError(
-            "PyPDF2 is required for PDF extraction. "
-            "Add it to src/lambda/requirements.txt."
-        )
+        raise ImportError("PyPDF2 is required for PDF extraction.")
     reader = PdfReader(str(file_path))
     pages: list[str] = []
     for page in reader.pages:
@@ -182,7 +156,7 @@ def _extract_pdf(file_path: Path) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Text cleaning (simplified — matches src/pipeline/cleaners/text_cleaner.py)
+# Text cleaning
 # ═══════════════════════════════════════════════════════════════════════════
 
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
@@ -191,7 +165,6 @@ _MULTI_NEWLINE_RE = re.compile(r"\n{3,}")
 
 
 def _clean_text(text: str) -> str:
-    """Basic text cleaning: remove URLs, collapse whitespace."""
     text = _URL_RE.sub("", text)
     text = _MULTI_WHITESPACE_RE.sub(" ", text)
     text = _MULTI_NEWLINE_RE.sub("\n\n", text)
@@ -199,25 +172,22 @@ def _clean_text(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Chunking (simplified recursive split — no tiktoken dependency)
+# Chunking
 # ═══════════════════════════════════════════════════════════════════════════
 
 _SEPARATORS = ["\n\n", "\n", ". ", " "]
 
 
 def _chunk_text(text: str) -> list[str]:
-    """Split text into overlapping character-limited chunks."""
     raw = _recursive_split(text, _SEPARATORS, CHUNK_SIZE_CHARS)
     return _merge_with_overlap(raw)
 
 
 def _recursive_split(text: str, separators: list[str], max_size: int) -> list[str]:
-    """Recursively split text using progressively finer separators."""
     if len(text) <= max_size:
         return [text] if text.strip() else []
 
     if not separators:
-        # Hard split at max_size as last resort
         return [text[i:i + max_size] for i in range(0, len(text), max_size)]
 
     sep = separators[0]
@@ -245,10 +215,8 @@ def _recursive_split(text: str, separators: list[str], max_size: int) -> list[st
 
 
 def _merge_with_overlap(chunks: list[str]) -> list[str]:
-    """Add character overlap between consecutive chunks."""
     if len(chunks) <= 1:
         return chunks
-
     merged = [chunks[0]]
     for i in range(1, len(chunks)):
         overlap = chunks[i - 1][-CHUNK_OVERLAP_CHARS:]
@@ -257,38 +225,46 @@ def _merge_with_overlap(chunks: list[str]) -> list[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Bedrock embeddings
+# Bedrock embeddings — with exponential backoff retry
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _embed_single(text: str) -> list[float]:
-    """Generate an embedding for a single text via Bedrock Titan."""
+    """Generate an embedding via Bedrock Titan with throttle retry."""
     body = json.dumps({"inputText": text})
-    response = bedrock_runtime.invoke_model(
-        modelId=BEDROCK_MODEL_ID,
-        contentType="application/json",
-        accept="application/json",
-        body=body,
-    )
-    result = json.loads(response["body"].read())
-    return result["embedding"]
+    for attempt in range(5):
+        try:
+            response = bedrock_runtime.invoke_model(
+                modelId=BEDROCK_MODEL_ID,
+                contentType="application/json",
+                accept="application/json",
+                body=body,
+            )
+            result = json.loads(response["body"].read())
+            return result["embedding"]
+        except Exception as e:
+            if "ThrottlingException" in str(e) and attempt < 4:
+                wait = 2 ** (attempt + 1)
+                logger.info(
+                    "Throttled, retrying in %ds (attempt %d/5)",
+                    wait, attempt + 1
+                )
+                time.sleep(wait)
+            else:
+                raise
 
 
 def _embed_chunks(chunks: list[str], doc_id: str) -> list[dict[str, Any]]:
-    """Embed all chunks and return a list of dicts for JSON serialisation."""
     embedded: list[dict[str, Any]] = []
     for idx, chunk_text in enumerate(chunks):
-        # Bedrock Titan has a 8192-token input limit; truncate if needed
-        truncated = chunk_text[:25000]  # ~8k tokens rough safety margin
+        truncated = chunk_text[:25000]
         embedding = _embed_single(truncated)
-        embedded.append(
-            {
-                "chunk_id": idx,
-                "doc_id": doc_id,
-                "text": chunk_text,
-                "embedding": embedding,
-                "embedding_dim": len(embedding),
-            }
-        )
+        embedded.append({
+            "chunk_id": idx,
+            "doc_id": doc_id,
+            "text": chunk_text,
+            "embedding": embedding,
+            "embedding_dim": len(embedding),
+        })
     return embedded
 
 
@@ -302,7 +278,6 @@ def _update_status(
     *,
     error: str | None = None,
 ) -> None:
-    """Update the processing status in DynamoDB."""
     update_expr = "SET processing_status = :s, updated_at = :t"
     expr_values: dict[str, Any] = {
         ":s": status,
