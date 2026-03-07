@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_request_timeout: float = 120.0
 
+    # ── Generation ───────────────────────────────────────────────────────
+    generation_model: str = "llama3"
+
     # ── OpenAI (optional fallback) ───────────────────────────────────────
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"

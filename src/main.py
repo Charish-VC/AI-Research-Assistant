@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.dependencies import get_pipeline
-from src.api.routes import documents, health, ingest, query
+from src.api.routes import chat, documents, health, ingest, query
 from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,7 @@ app.add_middleware(
 
 app.include_router(ingest.router)
 app.include_router(query.router)
+app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(health.router)
 
