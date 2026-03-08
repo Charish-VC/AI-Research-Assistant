@@ -28,10 +28,23 @@ Thumbs.db
 # Logs
 *.log
 
-# Verification scripts
-test*_*.py
-verify_platform.py
-full_test_suite.py
+# Lambda build artifacts
+lambda_deployment.zip
+lambda-logs.txt
+*.zip
+
+# Terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/terraform.tfvars
 
 # Large data
 *.pdf
+
+lambda-logs.txt
+lambda-policy.json
+lambda_deployment.zip
+tmp_diag.py
+trust-policy.json
+infrastructure/terraform/modules/lambda/placeholder.zip
