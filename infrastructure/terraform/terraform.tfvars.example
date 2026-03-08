@@ -1,0 +1,40 @@
+###############################################################################
+# terraform.tfvars.example — Copy to terraform.tfvars and customise
+###############################################################################
+
+aws_region  = "us-east-1"
+environment = "dev"
+
+# S3
+s3_bucket_name = "ai-research-assistant-dev"
+
+# DynamoDB
+dynamodb_table_name = "ai-research-documents"
+
+# SQS
+sqs_queue_name         = "document-processing-queue"
+sqs_visibility_timeout = 300
+sqs_message_retention  = 345600
+sqs_max_receive_count  = 3
+
+# Lambda
+lambda_function_name = "ai-research-document-processor"
+lambda_runtime       = "python3.11"
+lambda_memory_size   = 512
+lambda_timeout       = 300
+
+# IAM
+lambda_role_name   = "ai-research-lambda-role"
+lambda_policy_name = "ai-research-lambda-policy"
+
+# CloudWatch
+log_retention_days        = 14
+lambda_error_threshold    = 0
+lambda_duration_threshold = 240000
+
+# Tags
+tags = {
+  Project     = "ai-research-intelligence-platform"
+  ManagedBy   = "terraform"
+  Environment = "dev"
+}
