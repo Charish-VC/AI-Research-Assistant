@@ -182,7 +182,7 @@ ai-research-intelligence-platform/
 
 ```bash
 # 1. Clone
-git clone https://github.com/your-username/ai-research-intelligence-platform.git
+git clone https://github.com/Charish-VC/ai-research-intelligence-platform.git
 cd ai-research-intelligence-platform
 
 # 2. Configure environment
